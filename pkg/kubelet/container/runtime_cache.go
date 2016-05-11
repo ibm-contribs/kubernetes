@@ -23,7 +23,7 @@ import (
 
 var (
 	// TODO(yifan): Maybe set the them as parameters for NewCache().
-	defaultCachePeriod = time.Second * 2
+	defaultCachePeriod = time.Second * 180
 )
 
 type RuntimeCache interface {

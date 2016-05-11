@@ -175,6 +175,8 @@ func (ms *MinionServer) launchExecutorServer(containerID string) <-chan struct{}
 	if ms.cgroupRoot != "" {
 		executorArgs = append(executorArgs, "--cgroup-root="+ms.cgroupRoot)
 	}
+	executorArgs = append(executorArgs, "--housekeeping_interval=10000h0m0s")
+	executorArgs = append(executorArgs, "--global_housekeeping_interval=10000h0m0s")
 
 	// forward containerID so that the executor may pass it along to containers that it launches
 	var ctidOpt tasks.Option

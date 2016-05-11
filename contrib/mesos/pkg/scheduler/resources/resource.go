@@ -22,10 +22,10 @@ import (
 )
 
 const (
-	DefaultDefaultContainerCPULimit = CPUShares(0.25) // CPUs allocated for pods without CPU limit
-	DefaultDefaultContainerMemLimit = MegaBytes(64.0) // memory allocated for pods without memory limit
-	MinimumContainerCPU             = CPUShares(0.01) // minimum CPUs allowed by Mesos
-	MinimumContainerMem             = MegaBytes(32.0) // minimum memory allowed by Mesos
+	DefaultDefaultContainerCPULimit = CPUShares(0.25)  // CPUs allocated for pods without CPU limit
+	DefaultDefaultContainerMemLimit = MegaBytes(64.0)  // memory allocated for pods without memory limit
+	MinimumContainerCPU             = CPUShares(0.001) // minimum CPUs allowed by Mesos
+	MinimumContainerMem             = MegaBytes(8.0)   // minimum memory allowed by Mesos
 )
 
 var (
