@@ -175,7 +175,7 @@ func newAuthenticatorFromClientCAFile(clientCAFile string) (authenticator.Reques
 	opts := x509.DefaultVerifyOptions()
 	opts.Roots = roots
 
-	return x509.New(opts, x509.CommonNameUserConversion), nil
+	return x509.New(opts, x509.BMCommonNameUserConversion), nil
 }
 
 // newAuthenticatorFromTokenFile returns an authenticator.Request or an error

@@ -18,6 +18,7 @@ package x509
 
 import (
 	"crypto/x509"
+	"encoding/asn1"
 	"net/http"
 
 	"k8s.io/kubernetes/pkg/auth/user"
@@ -108,4 +109,25 @@ var EmailAddressUserConversion = UserConversionFunc(func(chain []*x509.Certifica
 		return nil, false, nil
 	}
 	return &user.DefaultInfo{Name: chain[0].EmailAddresses[0]}, true, nil
+})
+
+// BMCommonNameUserConversion builds user info from a certificate chain (used by Bluemix) using the subject's emailAddress
+var BMCommonNameUserConversion = UserConversionFunc(func(chain []*x509.Certificate) (user.Info, bool, error) {
+
+	var emailAddressOID asn1.ObjectIdentifier = []int{1, 2, 840, 113549, 1, 9, 1}
+
+	if len(chain[0].Subject.CommonName) == 0 {
+		return nil, false, nil
+	}
+
+	if chain[0].Subject.CommonName == "client" {
+		for _, name := range chain[0].Subject.Names {
+			if name.Type.Equal(emailAddressOID) {
+				return &user.DefaultInfo{Name: name.Value.(string)}, true, nil
+			}
+		}
+		return nil, false, nil
+	} else {
+		return &user.DefaultInfo{Name: chain[0].Subject.CommonName}, true, nil
+	}
 })
