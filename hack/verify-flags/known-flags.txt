@@ -223,6 +223,7 @@ kubelet-host-network-sources
 kubelet-https
 kubelet-kubeconfig
 kubelet-network-plugin
+kubelet-network-plugin-dir
 kubelet-pod-infra-container-image
 kubelet-port
 kubelet-read-only-port
