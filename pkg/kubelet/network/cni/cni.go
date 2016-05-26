@@ -68,6 +68,7 @@ func getDefaultCNINetwork(pluginDir, vendorCNIDirPrefix string) (*cniNetwork, er
 	if pluginDir == "" {
 		pluginDir = DefaultNetDir
 	}
+	glog.V(4).Infof("getDefaultCNINetwork with pluginDir=%v", pluginDir)
 	files, err := libcni.ConfFiles(pluginDir)
 	switch {
 	case err != nil:
@@ -85,6 +86,7 @@ func getDefaultCNINetwork(pluginDir, vendorCNIDirPrefix string) (*cniNetwork, er
 		}
 		// Search for vendor-specific plugins as well as default plugins in the CNI codebase.
 		vendorCNIDir := fmt.Sprintf(VendorCNIDirTemplate, vendorCNIDirPrefix, conf.Network.Type)
+		glog.V(4).Infof("getDefaultCNINetwork with confFile=%v, vendorCNIDir=%v", confFile, vendorCNIDir)
 		cninet := &libcni.CNIConfig{
 			Path: []string{DefaultCNIDir, vendorCNIDir},
 		}
@@ -161,7 +163,7 @@ func (network *cniNetwork) addToNetwork(podName string, podNamespace string, pod
 	}
 
 	netconf, cninet := network.NetworkConfig, network.CNIConfig
-	glog.V(4).Infof("About to run with conf.Network.Type=%v, c.Path=%v", netconf.Network.Type, cninet.Path)
+	glog.V(4).Infof("About to connect with conf.Network.Type=%v, c.Path=%v", netconf.Network.Type, cninet.Path)
 	res, err := cninet.AddNetwork(netconf, rt)
 	if err != nil {
 		glog.Errorf("Error adding network: %v", err)
@@ -179,7 +181,7 @@ func (network *cniNetwork) deleteFromNetwork(podName string, podNamespace string
 	}
 
 	netconf, cninet := network.NetworkConfig, network.CNIConfig
-	glog.V(4).Infof("About to run with conf.Network.Type=%v, c.Path=%v", netconf.Network.Type, cninet.Path)
+	glog.V(4).Infof("About to disconnect with conf.Network.Type=%v, c.Path=%v", netconf.Network.Type, cninet.Path)
 	err = cninet.DelNetwork(netconf, rt)
 	if err != nil {
 		glog.Errorf("Error deleting network: %v", err)
