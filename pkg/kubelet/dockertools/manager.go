@@ -1706,6 +1706,7 @@ func (dm *DockerManager) createPodInfraContainer(pod *api.Pod) (kubecontainer.Do
 	// Currently we don't care about restart count of infra container, just set it to 0.
 	id, err := dm.runContainerInPod(pod, container, netNamespace, getIPCMode(pod), getPidMode(pod), "", 0)
 	if err != nil {
+		glog.Errorf("Failed to run infra container for Pod %+v: %v", pod, err)
 		return "", kubecontainer.ErrRunContainer, err.Error()
 	}
 

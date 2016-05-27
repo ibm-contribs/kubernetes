@@ -106,6 +106,7 @@ func (plugin *cniNetworkPlugin) Name() string {
 }
 
 func (plugin *cniNetworkPlugin) SetUpPod(namespace string, name string, id kubecontainer.ContainerID) error {
+	glog.V(4).Infof("SetUpPod with name=%s", name)
 	runtime, ok := plugin.host.GetRuntime().(*dockertools.DockerManager)
 	if !ok {
 		return fmt.Errorf("CNI execution called on non-docker runtime")
@@ -125,6 +126,7 @@ func (plugin *cniNetworkPlugin) SetUpPod(namespace string, name string, id kubec
 }
 
 func (plugin *cniNetworkPlugin) TearDownPod(namespace string, name string, id kubecontainer.ContainerID) error {
+	glog.V(4).Infof("TearDownPod with name=%s", name)
 	runtime, ok := plugin.host.GetRuntime().(*dockertools.DockerManager)
 	if !ok {
 		return fmt.Errorf("CNI execution called on non-docker runtime")
@@ -163,7 +165,7 @@ func (network *cniNetwork) addToNetwork(podName string, podNamespace string, pod
 	}
 
 	netconf, cninet := network.NetworkConfig, network.CNIConfig
-	glog.V(4).Infof("About to connect with conf.Network.Type=%v, c.Path=%v", netconf.Network.Type, cninet.Path)
+	glog.V(4).Infof("About to connect %s with conf.Network.Type=%v, c.Path=%v", podName, netconf.Network.Type, cninet.Path)
 	res, err := cninet.AddNetwork(netconf, rt)
 	if err != nil {
 		glog.Errorf("Error adding network: %v", err)
@@ -181,7 +183,7 @@ func (network *cniNetwork) deleteFromNetwork(podName string, podNamespace string
 	}
 
 	netconf, cninet := network.NetworkConfig, network.CNIConfig
-	glog.V(4).Infof("About to disconnect with conf.Network.Type=%v, c.Path=%v", netconf.Network.Type, cninet.Path)
+	glog.V(4).Infof("About to disconnect %s with conf.Network.Type=%v, c.Path=%v", podName, netconf.Network.Type, cninet.Path)
 	err = cninet.DelNetwork(netconf, rt)
 	if err != nil {
 		glog.Errorf("Error deleting network: %v", err)
