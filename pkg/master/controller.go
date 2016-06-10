@@ -45,9 +45,10 @@ type Controller struct {
 	NamespaceRegistry namespace.Registry
 	ServiceRegistry   service.Registry
 
-	ServiceClusterIPRegistry service.RangeRegistry
-	ServiceClusterIPInterval time.Duration
-	ServiceClusterIPRange    *net.IPNet
+	ServiceClusterIPRegistry                 service.RangeRegistry
+	ServiceClusterIPInterval                 time.Duration
+	ServiceClusterIPRange                    *net.IPNet
+	SuppressServiceClusterIPRangeEnforcement bool
 
 	ServiceNodePortRegistry service.RangeRegistry
 	ServiceNodePortInterval time.Duration
@@ -78,7 +79,7 @@ func (c *Controller) Start() {
 		return
 	}
 
-	repairClusterIPs := servicecontroller.NewRepair(c.ServiceClusterIPInterval, c.ServiceRegistry, c.ServiceClusterIPRange, c.ServiceClusterIPRegistry)
+	repairClusterIPs := servicecontroller.NewRepair(c.ServiceClusterIPInterval, c.ServiceRegistry, c.ServiceClusterIPRange, c.ServiceClusterIPRegistry, c.SuppressServiceClusterIPRangeEnforcement)
 	repairNodePorts := portallocatorcontroller.NewRepair(c.ServiceNodePortInterval, c.ServiceRegistry, c.ServiceNodePortRange, c.ServiceNodePortRegistry)
 
 	// run all of the controllers once prior to returning from Start.

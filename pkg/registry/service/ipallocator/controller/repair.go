@@ -46,20 +46,22 @@ import (
 // TODO: allocate new IPs if necessary
 // TODO: perform repair?
 type Repair struct {
-	interval time.Duration
-	registry service.Registry
-	network  *net.IPNet
-	alloc    service.RangeRegistry
+	interval                                 time.Duration
+	registry                                 service.Registry
+	network                                  *net.IPNet
+	alloc                                    service.RangeRegistry
+	suppressServiceClusterIPRangeEnforcement bool
 }
 
 // NewRepair creates a controller that periodically ensures that all clusterIPs are uniquely allocated across the cluster
 // and generates informational warnings for a cluster that is not in sync.
-func NewRepair(interval time.Duration, registry service.Registry, network *net.IPNet, alloc service.RangeRegistry) *Repair {
+func NewRepair(interval time.Duration, registry service.Registry, network *net.IPNet, alloc service.RangeRegistry, suppressServiceClusterIPRangeEnforcement bool) *Repair {
 	return &Repair{
 		interval: interval,
 		registry: registry,
 		network:  network,
 		alloc:    alloc,
+		suppressServiceClusterIPRangeEnforcement: suppressServiceClusterIPRangeEnforcement,
 	}
 }
 
@@ -109,7 +111,7 @@ func (c *Repair) runOnce() error {
 		return fmt.Errorf("unable to refresh the service IP block: %v", err)
 	}
 
-	r := ipallocator.NewCIDRRange(c.network)
+	r := ipallocator.NewCIDRRange(c.network, c.suppressServiceClusterIPRangeEnforcement)
 	for _, svc := range list.Items {
 		if !api.IsServiceIPSet(&svc) {
 			continue

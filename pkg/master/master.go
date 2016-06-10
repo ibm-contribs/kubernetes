@@ -476,7 +476,7 @@ func (m *Master) initV1ResourcesStorage(c *Config) {
 		glog.Fatal(err.Error())
 	}
 
-	serviceClusterIPAllocator := ipallocator.NewAllocatorCIDRRange(serviceClusterIPRange, func(max int, rangeSpec string) allocator.Interface {
+	serviceClusterIPAllocator := ipallocator.NewAllocatorCIDRRange(serviceClusterIPRange, m.SuppressServiceClusterIPRangeEnforcement, func(max int, rangeSpec string) allocator.Interface {
 		mem := allocator.NewAllocationMap(max, rangeSpec)
 		// TODO etcdallocator package to return a storage interface via the storageFactory
 		etcd := etcdallocator.NewEtcd(mem, "/ranges/serviceips", api.Resource("serviceipallocations"), serviceStorage)
@@ -574,9 +574,10 @@ func (m *Master) NewBootstrapController(endpointReconcilerConfig EndpointReconci
 		SystemNamespaces:         []string{api.NamespaceSystem},
 		SystemNamespacesInterval: 1 * time.Minute,
 
-		ServiceClusterIPRegistry: m.serviceClusterIPAllocator,
-		ServiceClusterIPRange:    m.ServiceClusterIPRange,
-		ServiceClusterIPInterval: 3 * time.Minute,
+		ServiceClusterIPRegistry:                 m.serviceClusterIPAllocator,
+		ServiceClusterIPRange:                    m.ServiceClusterIPRange,
+		SuppressServiceClusterIPRangeEnforcement: m.SuppressServiceClusterIPRangeEnforcement,
+		ServiceClusterIPInterval:                 3 * time.Minute,
 
 		ServiceNodePortRegistry: m.serviceNodePortAllocator,
 		ServiceNodePortRange:    m.ServiceNodePortRange,

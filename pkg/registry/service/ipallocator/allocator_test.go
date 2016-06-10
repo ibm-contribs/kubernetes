@@ -25,11 +25,11 @@ import (
 )
 
 func TestAllocate(t *testing.T) {
-	_, cidr, err := net.ParseCIDR("192.168.1.0/24")
-	if err != nil {
-		t.Fatal(err)
+	_, cidr, terr := net.ParseCIDR("192.168.1.0/24")
+	if terr != nil {
+		t.Fatal(terr)
 	}
-	r := NewCIDRRange(cidr)
+	r := NewCIDRRange(cidr, false)
 	t.Logf("base: %v", r.base.Bytes())
 	if f := r.Free(); f != 254 {
 		t.Errorf("unexpected free %d", f)
@@ -95,12 +95,101 @@ func TestAllocate(t *testing.T) {
 	}
 }
 
+func TestAllocateWithSuppressServClusterIPRangeEnforcement(t *testing.T) {
+	_, cidr, terr := net.ParseCIDR("192.168.1.0/24")
+	if terr != nil {
+		t.Fatal(terr)
+	}
+	r := NewCIDRRange(cidr, true) // note: passing suppressServClusterIPRangeEnforcement = true
+	t.Logf("base: %v", r.base.Bytes())
+	if f := r.Free(); f != 254 {
+		t.Errorf("unexpected free %d", f)
+	}
+	found := sets.NewString()
+	count := 0
+	for r.Free() > 0 {
+		ip, err := r.AllocateNext()
+		if err != nil {
+			t.Fatalf("error @ %d: %v", count, err)
+		}
+		count++
+		if !cidr.Contains(ip) {
+			t.Fatalf("allocated %s which is outside of %s", ip, cidr)
+		}
+		if found.Has(ip.String()) {
+			t.Fatalf("allocated %s twice @ %d", ip, count)
+		}
+		found.Insert(ip.String())
+	}
+	if _, err := r.AllocateNext(); err != ErrFull {
+		t.Fatal(err)
+	}
+
+	released := net.ParseIP("192.168.1.5")
+	if err := r.Release(released); err != nil {
+		t.Fatal(err)
+	}
+	if f := r.Free(); f != 1 {
+		t.Errorf("unexpected free %d", f)
+	}
+	ip, err := r.AllocateNext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !released.Equal(ip) {
+		t.Errorf("unexpected %s : %s", ip, released)
+	}
+
+	if err := r.Release(released); err != nil {
+		t.Fatal(err)
+	}
+
+	outOfRangeIP := net.ParseIP("192.168.0.1")
+	if err := r.Allocate(outOfRangeIP); err != nil { // should not report ErrNotInRange when suppressServClusterIPRangeEnforcement = true
+		if err == ErrNotInRange {
+			t.Fatalf("unexpected ErrNotInRange should be suppressed but received %v", err)
+		}
+		t.Fatal(err)
+	}
+	if err := r.Allocate(outOfRangeIP); err != nil { // should not report an error because allocate is a no-op for ips out of range
+		t.Fatalf("unexpected error %v", err)
+	}
+	if err := r.Release(outOfRangeIP); err != nil { // allocate and release are no-op for out of range
+		t.Fatal(err)
+	}
+
+	if err := r.Allocate(net.ParseIP("192.168.1.1")); err != ErrAllocated { // should fail because it was already allocated above
+		t.Fatal(err)
+	}
+	if err := r.Allocate(net.ParseIP("192.168.1.0")); err != nil {
+		if err == ErrNotInRange {
+			t.Fatalf("unexpected ErrNotInRange should be suppressed but received %v", err)
+		}
+		t.Fatal(err)
+	}
+	if err := r.Allocate(net.ParseIP("192.168.1.255")); err != nil {
+		if err == ErrNotInRange {
+			t.Fatalf("unexpected ErrNotInRange should be suppressed but received %v", err)
+		}
+		t.Fatal(err)
+	}
+	if f := r.Free(); f != 1 { // out of range allocations should have no effect on free count for in range allocations
+		t.Errorf("unexpected free %d", f)
+	}
+	if err := r.Allocate(released); err != nil {
+		t.Fatal(err)
+	}
+	if f := r.Free(); f != 0 {
+		t.Errorf("unexpected free %d", f)
+	}
+}
+
 func TestAllocateTiny(t *testing.T) {
 	_, cidr, err := net.ParseCIDR("192.168.1.0/32")
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := NewCIDRRange(cidr)
+	r := NewCIDRRange(cidr, false)
 	if f := r.Free(); f != 0 {
 		t.Errorf("free: %d", f)
 	}
@@ -109,12 +198,37 @@ func TestAllocateTiny(t *testing.T) {
 	}
 }
 
+func TestAllocateTinyWithSuppressServClusterIPRangeEnforcement(t *testing.T) {
+	_, cidr, err := net.ParseCIDR("192.168.1.0/32")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := NewCIDRRange(cidr, true) // note: passing suppressServClusterIPRangeEnforcement = true
+	if f := r.Free(); f != 0 {
+		t.Errorf("free: %d", f)
+	}
+	if _, err := r.AllocateNext(); err != ErrFull {
+		t.Error(err)
+	}
+
+	outOfRangeIP := net.ParseIP("192.168.0.1")
+	if err := r.Allocate(outOfRangeIP); err != nil { // should not report ErrNotInRange when suppressServClusterIPRangeEnforcement = true
+		if err == ErrNotInRange {
+			t.Fatalf("unexpected ErrNotInRange should be suppressed but received %v", err)
+		}
+		t.Fatal(err)
+	}
+	if err := r.Release(outOfRangeIP); err != nil { // allocate and release are no-op for out of range
+		t.Fatal(err)
+	}
+}
+
 func TestAllocateSmall(t *testing.T) {
 	_, cidr, err := net.ParseCIDR("192.168.1.240/30")
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := NewCIDRRange(cidr)
+	r := NewCIDRRange(cidr, false)
 	if f := r.Free(); f != 2 {
 		t.Errorf("free: %d", f)
 	}
@@ -168,11 +282,11 @@ func TestRangeSize(t *testing.T) {
 }
 
 func TestSnapshot(t *testing.T) {
-	_, cidr, err := net.ParseCIDR("192.168.1.0/24")
-	if err != nil {
-		t.Fatal(err)
+	_, cidr, terr := net.ParseCIDR("192.168.1.0/24")
+	if terr != nil {
+		t.Fatal(terr)
 	}
-	r := NewCIDRRange(cidr)
+	r := NewCIDRRange(cidr, false)
 	ip := []net.IP{}
 	for i := 0; i < 10; i++ {
 		n, err := r.AllocateNext()
@@ -183,9 +297,9 @@ func TestSnapshot(t *testing.T) {
 	}
 
 	var dst api.RangeAllocation
-	err = r.Snapshot(&dst)
-	if err != nil {
-		t.Fatal(err)
+	terr = r.Snapshot(&dst)
+	if terr != nil {
+		t.Fatal(terr)
 	}
 
 	_, network, err := net.ParseCIDR(dst.Range)
@@ -201,11 +315,11 @@ func TestSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other := NewCIDRRange(otherCidr)
+	other := NewCIDRRange(otherCidr, false)
 	if err := r.Restore(otherCidr, dst.Data); err != ErrMismatchedNetwork {
 		t.Fatal(err)
 	}
-	other = NewCIDRRange(network)
+	other = NewCIDRRange(network, false)
 	if err := other.Restore(network, dst.Data); err != nil {
 		t.Fatal(err)
 	}
@@ -217,5 +331,73 @@ func TestSnapshot(t *testing.T) {
 	}
 	if other.Free() != r.Free() {
 		t.Errorf("counts do not match: %d", other.Free())
+	}
+}
+
+func TestSnapshotWithSuppressServClusterIPRangeEnforcement(t *testing.T) {
+	_, cidr, terr := net.ParseCIDR("192.168.1.0/24")
+	if terr != nil {
+		t.Fatal(terr)
+	}
+	r := NewCIDRRange(cidr, true) // note: passing suppressServClusterIPRangeEnforcement = true
+	ip := []net.IP{}
+	for i := 0; i < 10; i++ {
+		n, err := r.AllocateNext()
+		if err != nil {
+			t.Fatal(err)
+		}
+		ip = append(ip, n)
+	}
+
+	outOfRangeIP := net.ParseIP("192.168.0.1")
+	if err := r.Allocate(outOfRangeIP); err != nil { // should not report ErrNotInRange when suppressServClusterIPRangeEnforcement = true
+		if err == ErrNotInRange {
+			t.Fatalf("unexpected ErrNotInRange should be suppressed but received %v", err)
+		}
+		t.Fatal(err)
+	}
+
+	var dst api.RangeAllocation
+	terr = r.Snapshot(&dst)
+	if terr != nil {
+		t.Fatal(terr)
+	}
+
+	_, network, err := net.ParseCIDR(dst.Range)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !network.IP.Equal(cidr.IP) || network.Mask.String() != cidr.Mask.String() {
+		t.Fatalf("mismatched networks: %s : %s", network, cidr)
+	}
+
+	_, otherCidr, err := net.ParseCIDR("192.168.2.0/24")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := NewCIDRRange(otherCidr, true)
+	if err := r.Restore(otherCidr, dst.Data); err != ErrMismatchedNetwork {
+		t.Fatal(err)
+	}
+	other = NewCIDRRange(network, true)
+	if err := other.Restore(network, dst.Data); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, n := range ip {
+		if !other.Has(n) {
+			t.Errorf("restored range does not have %s", n)
+		}
+	}
+	if other.Free() != r.Free() {
+		t.Errorf("counts do not match: %d", other.Free())
+	}
+
+	if err := r.Release(outOfRangeIP); err != nil { // allocate and release are no-op for out of range
+		t.Fatal(err)
+	}
+	if err := other.Release(outOfRangeIP); err != nil { // allocate and release are no-op for out of range
+		t.Fatal(err)
 	}
 }

@@ -41,7 +41,25 @@ func newStorage(t *testing.T) (*etcdtesting.EtcdTestServer, ipallocator.Interfac
 	}
 
 	var backing allocator.Interface
-	storage := ipallocator.NewAllocatorCIDRRange(cidr, func(max int, rangeSpec string) allocator.Interface {
+	storage := ipallocator.NewAllocatorCIDRRange(cidr, false, func(max int, rangeSpec string) allocator.Interface {
+		mem := allocator.NewAllocationMap(max, rangeSpec)
+		backing = mem
+		etcd := allocatoretcd.NewEtcd(mem, "/ranges/serviceips", api.Resource("serviceipallocations"), etcdStorage)
+		return etcd
+	})
+
+	return server, storage, backing, etcdStorage
+}
+
+func newStorageWithSuppressServClusterIPRangeEnforcement(t *testing.T) (*etcdtesting.EtcdTestServer, ipallocator.Interface, allocator.Interface, storage.Interface) {
+	etcdStorage, server := registrytest.NewEtcdStorage(t, "")
+	_, cidr, err := net.ParseCIDR("192.168.1.0/24")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var backing allocator.Interface
+	storage := ipallocator.NewAllocatorCIDRRange(cidr, true, func(max int, rangeSpec string) allocator.Interface { // note: passing suppressServClusterIPRangeEnforcement = true
 		mem := allocator.NewAllocationMap(max, rangeSpec)
 		backing = mem
 		etcd := allocatoretcd.NewEtcd(mem, "/ranges/serviceips", api.Resource("serviceipallocations"), etcdStorage)
@@ -79,8 +97,41 @@ func TestErrors(t *testing.T) {
 	}
 }
 
+func TestErrorsWithSuppressServClusterIPRangeEnforcement(t *testing.T) {
+	server, storage, _, _ := newStorageWithSuppressServClusterIPRangeEnforcement(t)
+	defer server.Terminate(t)
+	if err := storage.Allocate(net.ParseIP("192.168.0.0")); err != nil { // should not report ErrNotInRange when suppressServClusterIPRangeEnforcement = true
+		if err == ipallocator.ErrNotInRange {
+			t.Fatalf("unexpected ErrNotInRange should be suppressed but received %v", err)
+		}
+		t.Fatal(err)
+	}
+}
+
 func TestStore(t *testing.T) {
 	server, storage, backing, si := newStorage(t)
+	defer server.Terminate(t)
+	if err := si.Create(context.TODO(), key(), validNewRangeAllocation(), nil, 0); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if err := storage.Allocate(net.ParseIP("192.168.1.2")); err != nil {
+		t.Fatal(err)
+	}
+	ok, err := backing.Allocate(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("Expected allocation to fail")
+	}
+	if err := storage.Allocate(net.ParseIP("192.168.1.2")); err != ipallocator.ErrAllocated {
+		t.Fatal(err)
+	}
+}
+
+func TestStoreWithSuppressServClusterIPRangeEnforcement(t *testing.T) {
+	server, storage, backing, si := newStorageWithSuppressServClusterIPRangeEnforcement(t)
 	defer server.Terminate(t)
 	if err := si.Create(context.TODO(), key(), validNewRangeAllocation(), nil, 0); err != nil {
 		t.Fatalf("unexpected error: %v", err)

@@ -65,33 +65,34 @@ type ServerRunOptions struct {
 	DefaultStorageMediaType    string
 	DeleteCollectionWorkers    int
 	// Used to specify the storage version that should be used for the legacy v1 api group.
-	DeprecatedStorageVersion  string
-	EnableLogsSupport         bool
-	EnableProfiling           bool
-	EnableSwaggerUI           bool
-	EnableWatchCache          bool
-	EtcdServersOverrides      []string
-	StorageConfig             storagebackend.Config
-	ExternalHost              string
-	InsecureBindAddress       net.IP
-	InsecurePort              int
-	KeystoneURL               string
-	KubernetesServiceNodePort int
-	LongRunningRequestRE      string
-	MasterCount               int
-	MasterServiceNamespace    string
-	MaxRequestsInFlight       int
-	MinRequestTimeout         int
-	OIDCCAFile                string
-	OIDCClientID              string
-	OIDCIssuerURL             string
-	OIDCUsernameClaim         string
-	OIDCGroupsClaim           string
-	RuntimeConfig             config.ConfigurationMap
-	SecurePort                int
-	ServiceClusterIPRange     net.IPNet // TODO: make this a list
-	ServiceNodePortRange      utilnet.PortRange
-	StorageVersions           string
+	DeprecatedStorageVersion                 string
+	EnableLogsSupport                        bool
+	EnableProfiling                          bool
+	EnableSwaggerUI                          bool
+	EnableWatchCache                         bool
+	EtcdServersOverrides                     []string
+	StorageConfig                            storagebackend.Config
+	ExternalHost                             string
+	InsecureBindAddress                      net.IP
+	InsecurePort                             int
+	KeystoneURL                              string
+	KubernetesServiceNodePort                int
+	LongRunningRequestRE                     string
+	MasterCount                              int
+	MasterServiceNamespace                   string
+	MaxRequestsInFlight                      int
+	MinRequestTimeout                        int
+	OIDCCAFile                               string
+	OIDCClientID                             string
+	OIDCIssuerURL                            string
+	OIDCUsernameClaim                        string
+	OIDCGroupsClaim                          string
+	RuntimeConfig                            config.ConfigurationMap
+	SecurePort                               int
+	ServiceClusterIPRange                    net.IPNet // TODO: make this a list
+	ServiceNodePortRange                     utilnet.PortRange
+	StorageVersions                          string
+	SuppressServiceClusterIPRangeEnforcement bool
 	// The default values for StorageVersions. StorageVersions overrides
 	// these; you can change this if you want to change the defaults (e.g.,
 	// for testing). This is not actually exposed as a flag.
@@ -310,6 +311,8 @@ func (s *ServerRunOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.IPNetVar(&s.ServiceClusterIPRange, "service-cluster-ip-range", s.ServiceClusterIPRange, "A CIDR notation IP range from which to assign service cluster IPs. This must not overlap with any IP ranges assigned to nodes for pods.")
 	fs.IPNetVar(&s.ServiceClusterIPRange, "portal-net", s.ServiceClusterIPRange, "Deprecated: see --service-cluster-ip-range instead.")
 	fs.MarkDeprecated("portal-net", "see --service-cluster-ip-range instead.")
+
+	fs.BoolVar(&s.SuppressServiceClusterIPRangeEnforcement, "suppress-service-cluster-ip-range-enforcement", s.SuppressServiceClusterIPRangeEnforcement, "When suppress-service-cluster-ip-range-enforcement is set to false (default) and specific ClusterIP has been set for a service, the ClusterIP of the service must be located in within the service-cluster-ip-range. Otherwise an error will be generated when the attempt to start the service occurs. However, this enforcement will be suppressed if suppress-service-cluster-ip-range-enforcement is set to true.")
 
 	fs.Var(&s.ServiceNodePortRange, "service-node-port-range", "A port range to reserve for services with NodePort visibility.  Example: '30000-32767'.  Inclusive at both ends of the range.")
 	fs.Var(&s.ServiceNodePortRange, "service-node-ports", "Deprecated: see --service-node-port-range instead.")

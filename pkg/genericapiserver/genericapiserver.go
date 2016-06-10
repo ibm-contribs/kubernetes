@@ -157,7 +157,13 @@ type Config struct {
 	// The range of IPs to be assigned to services with type=ClusterIP or greater
 	ServiceClusterIPRange *net.IPNet
 
-	// The IP address for the GenericAPIServer service (must be inside ServiceClusterIPRange)
+	// Suppress range error checking of manually set ClusterIPs against the
+	// ServiceClusterIPRange.
+	SuppressServiceClusterIPRangeEnforcement bool
+
+	// The IP address for the GenericAPIServer service (must be inside
+	// ServiceClusterIPRange unless SuppressServiceClusterIPRangeEnforcement is
+	// set to true)
 	ServiceReadWriteIP net.IP
 
 	// Port for the apiserver service.
@@ -188,10 +194,11 @@ type Config struct {
 // GenericAPIServer contains state for a Kubernetes cluster api server.
 type GenericAPIServer struct {
 	// "Inputs", Copied from Config
-	ServiceClusterIPRange *net.IPNet
-	ServiceNodePortRange  utilnet.PortRange
-	cacheTimeout          time.Duration
-	MinRequestTimeout     time.Duration
+	ServiceClusterIPRange                    *net.IPNet
+	SuppressServiceClusterIPRangeEnforcement bool
+	ServiceNodePortRange                     utilnet.PortRange
+	cacheTimeout                             time.Duration
+	MinRequestTimeout                        time.Duration
 
 	mux                   apiserver.Mux
 	MuxHelper             *apiserver.MuxHelper
@@ -338,23 +345,24 @@ func New(c *Config) (*GenericAPIServer, error) {
 	setDefaults(c)
 
 	s := &GenericAPIServer{
-		ServiceClusterIPRange: c.ServiceClusterIPRange,
-		ServiceNodePortRange:  c.ServiceNodePortRange,
-		RootWebService:        new(restful.WebService),
-		enableLogsSupport:     c.EnableLogsSupport,
-		enableUISupport:       c.EnableUISupport,
-		enableSwaggerSupport:  c.EnableSwaggerSupport,
-		enableSwaggerUI:       c.EnableSwaggerUI,
-		enableProfiling:       c.EnableProfiling,
-		enableWatchCache:      c.EnableWatchCache,
-		APIPrefix:             c.APIPrefix,
-		APIGroupPrefix:        c.APIGroupPrefix,
-		corsAllowedOriginList: c.CorsAllowedOriginList,
-		authenticator:         c.Authenticator,
-		authorizer:            c.Authorizer,
-		AdmissionControl:      c.AdmissionControl,
-		RequestContextMapper:  c.RequestContextMapper,
-		Serializer:            c.Serializer,
+		ServiceClusterIPRange:                    c.ServiceClusterIPRange,
+		SuppressServiceClusterIPRangeEnforcement: c.SuppressServiceClusterIPRangeEnforcement,
+		ServiceNodePortRange:                     c.ServiceNodePortRange,
+		RootWebService:                           new(restful.WebService),
+		enableLogsSupport:                        c.EnableLogsSupport,
+		enableUISupport:                          c.EnableUISupport,
+		enableSwaggerSupport:                     c.EnableSwaggerSupport,
+		enableSwaggerUI:                          c.EnableSwaggerUI,
+		enableProfiling:                          c.EnableProfiling,
+		enableWatchCache:                         c.EnableWatchCache,
+		APIPrefix:                                c.APIPrefix,
+		APIGroupPrefix:                           c.APIGroupPrefix,
+		corsAllowedOriginList:                    c.CorsAllowedOriginList,
+		authenticator:                            c.Authenticator,
+		authorizer:                               c.Authorizer,
+		AdmissionControl:                         c.AdmissionControl,
+		RequestContextMapper:                     c.RequestContextMapper,
+		Serializer:                               c.Serializer,
 
 		cacheTimeout:      c.CacheTimeout,
 		MinRequestTimeout: time.Duration(c.MinRequestTimeout) * time.Second,
@@ -550,24 +558,25 @@ func verifyClusterIPFlags(options *options.ServerRunOptions) {
 
 func NewConfig(options *options.ServerRunOptions) *Config {
 	return &Config{
-		APIGroupPrefix:            options.APIGroupPrefix,
-		APIPrefix:                 options.APIPrefix,
-		CorsAllowedOriginList:     options.CorsAllowedOriginList,
-		EnableIndex:               true,
-		EnableLogsSupport:         options.EnableLogsSupport,
-		EnableProfiling:           options.EnableProfiling,
-		EnableSwaggerSupport:      true,
-		EnableSwaggerUI:           options.EnableSwaggerUI,
-		EnableUISupport:           true,
-		EnableWatchCache:          options.EnableWatchCache,
-		ExternalHost:              options.ExternalHost,
-		KubernetesServiceNodePort: options.KubernetesServiceNodePort,
-		MasterCount:               options.MasterCount,
-		MinRequestTimeout:         options.MinRequestTimeout,
-		PublicAddress:             options.AdvertiseAddress,
-		ReadWritePort:             options.SecurePort,
-		ServiceClusterIPRange:     &options.ServiceClusterIPRange,
-		ServiceNodePortRange:      options.ServiceNodePortRange,
+		APIGroupPrefix:                           options.APIGroupPrefix,
+		APIPrefix:                                options.APIPrefix,
+		CorsAllowedOriginList:                    options.CorsAllowedOriginList,
+		EnableIndex:                              true,
+		EnableLogsSupport:                        options.EnableLogsSupport,
+		EnableProfiling:                          options.EnableProfiling,
+		EnableSwaggerSupport:                     true,
+		EnableSwaggerUI:                          options.EnableSwaggerUI,
+		EnableUISupport:                          true,
+		EnableWatchCache:                         options.EnableWatchCache,
+		ExternalHost:                             options.ExternalHost,
+		KubernetesServiceNodePort:                options.KubernetesServiceNodePort,
+		MasterCount:                              options.MasterCount,
+		MinRequestTimeout:                        options.MinRequestTimeout,
+		PublicAddress:                            options.AdvertiseAddress,
+		ReadWritePort:                            options.SecurePort,
+		ServiceClusterIPRange:                    &options.ServiceClusterIPRange,
+		SuppressServiceClusterIPRangeEnforcement: options.SuppressServiceClusterIPRangeEnforcement,
+		ServiceNodePortRange:                     options.ServiceNodePortRange,
 	}
 }
 

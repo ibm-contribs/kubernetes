@@ -54,7 +54,7 @@ func TestRepair(t *testing.T) {
 	ipregistry := &mockRangeRegistry{
 		item: &api.RangeAllocation{},
 	}
-	r := NewRepair(0, registry, cidr, ipregistry)
+	r := NewRepair(0, registry, cidr, ipregistry, false)
 
 	if err := r.RunOnce(); err != nil {
 		t.Fatal(err)
@@ -67,7 +67,32 @@ func TestRepair(t *testing.T) {
 		item:      &api.RangeAllocation{},
 		updateErr: fmt.Errorf("test error"),
 	}
-	r = NewRepair(0, registry, cidr, ipregistry)
+	r = NewRepair(0, registry, cidr, ipregistry, false)
+	if err := r.RunOnce(); !strings.Contains(err.Error(), ": test error") {
+		t.Fatal(err)
+	}
+}
+
+func TestRepairWithSuppressServClusterIPRangeEnforcement(t *testing.T) {
+	registry := registrytest.NewServiceRegistry()
+	_, cidr, _ := net.ParseCIDR("192.168.1.0/24")
+	ipregistry := &mockRangeRegistry{
+		item: &api.RangeAllocation{},
+	}
+	r := NewRepair(0, registry, cidr, ipregistry, true) // note: passing suppressServClusterIPRangeEnforcement = true
+
+	if err := r.RunOnce(); err != nil {
+		t.Fatal(err)
+	}
+	if !ipregistry.updateCalled || ipregistry.updated == nil || ipregistry.updated.Range != cidr.String() || ipregistry.updated != ipregistry.item {
+		t.Errorf("unexpected ipregistry: %#v", ipregistry)
+	}
+
+	ipregistry = &mockRangeRegistry{
+		item:      &api.RangeAllocation{},
+		updateErr: fmt.Errorf("test error"),
+	}
+	r = NewRepair(0, registry, cidr, ipregistry, true) // note: passing suppressServClusterIPRangeEnforcement = true
 	if err := r.RunOnce(); !strings.Contains(err.Error(), ": test error") {
 		t.Fatal(err)
 	}
@@ -75,7 +100,7 @@ func TestRepair(t *testing.T) {
 
 func TestRepairEmpty(t *testing.T) {
 	_, cidr, _ := net.ParseCIDR("192.168.1.0/24")
-	previous := ipallocator.NewCIDRRange(cidr)
+	previous := ipallocator.NewCIDRRange(cidr, false)
 	previous.Allocate(net.ParseIP("192.168.1.10"))
 
 	var dst api.RangeAllocation
@@ -94,11 +119,11 @@ func TestRepairEmpty(t *testing.T) {
 			Data:  dst.Data,
 		},
 	}
-	r := NewRepair(0, registry, cidr, ipregistry)
+	r := NewRepair(0, registry, cidr, ipregistry, false)
 	if err := r.RunOnce(); err != nil {
 		t.Fatal(err)
 	}
-	after := ipallocator.NewCIDRRange(cidr)
+	after := ipallocator.NewCIDRRange(cidr, false)
 	if err := after.Restore(cidr, ipregistry.updated.Data); err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +134,7 @@ func TestRepairEmpty(t *testing.T) {
 
 func TestRepairWithExisting(t *testing.T) {
 	_, cidr, _ := net.ParseCIDR("192.168.1.0/24")
-	previous := ipallocator.NewCIDRRange(cidr)
+	previous := ipallocator.NewCIDRRange(cidr, false)
 
 	var dst api.RangeAllocation
 	err := previous.Snapshot(&dst)
@@ -150,11 +175,70 @@ func TestRepairWithExisting(t *testing.T) {
 			Data:  dst.Data,
 		},
 	}
-	r := NewRepair(0, registry, cidr, ipregistry)
+	r := NewRepair(0, registry, cidr, ipregistry, false)
 	if err := r.RunOnce(); err != nil {
 		t.Fatal(err)
 	}
-	after := ipallocator.NewCIDRRange(cidr)
+	after := ipallocator.NewCIDRRange(cidr, false)
+	if err := after.Restore(cidr, ipregistry.updated.Data); err != nil {
+		t.Fatal(err)
+	}
+	if !after.Has(net.ParseIP("192.168.1.1")) || !after.Has(net.ParseIP("192.168.1.100")) {
+		t.Errorf("unexpected ipallocator state: %#v", after)
+	}
+	if after.Free() != 252 {
+		t.Errorf("unexpected ipallocator state: %#v", after)
+	}
+}
+
+func TestRepairWithExistingWithSuppressServClusterIPRangeEnforcement(t *testing.T) {
+	_, cidr, _ := net.ParseCIDR("192.168.1.0/24")
+	previous := ipallocator.NewCIDRRange(cidr, true) // note: passing suppressServClusterIPRangeEnforcement = true
+
+	var dst api.RangeAllocation
+	err := previous.Snapshot(&dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	registry := registrytest.NewServiceRegistry()
+	registry.List = api.ServiceList{
+		Items: []api.Service{
+			{
+				Spec: api.ServiceSpec{ClusterIP: "192.168.1.1"},
+			},
+			{
+				Spec: api.ServiceSpec{ClusterIP: "192.168.1.100"},
+			},
+			{ // outside CIDR, will be ignored
+				Spec: api.ServiceSpec{ClusterIP: "192.168.0.1"},
+			},
+			{ // empty, ignored
+				Spec: api.ServiceSpec{ClusterIP: ""},
+			},
+			{ // duplicate, dropped
+				Spec: api.ServiceSpec{ClusterIP: "192.168.1.1"},
+			},
+			{ // headless
+				Spec: api.ServiceSpec{ClusterIP: "None"},
+			},
+		},
+	}
+
+	ipregistry := &mockRangeRegistry{
+		item: &api.RangeAllocation{
+			ObjectMeta: api.ObjectMeta{
+				ResourceVersion: "1",
+			},
+			Range: dst.Range,
+			Data:  dst.Data,
+		},
+	}
+	r := NewRepair(0, registry, cidr, ipregistry, true)
+	if err := r.RunOnce(); err != nil {
+		t.Fatal(err)
+	}
+	after := ipallocator.NewCIDRRange(cidr, true)
 	if err := after.Restore(cidr, ipregistry.updated.Data); err != nil {
 		t.Fatal(err)
 	}
