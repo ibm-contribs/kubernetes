@@ -46,6 +46,8 @@ const (
 	// TODO(random-liu): Keep this for old containers, remove this when we drop support for v1.1.
 	kubernetesPodLabel = "io.kubernetes.pod.data"
 
+	kubernetesPodContainersAnnotationsPrefix = "containers-annotations.alpha.kubernetes.io"
+
 	cadvisorPrometheusMetricsLabel = "io.cadvisor.metric.prometheus"
 )
 
@@ -87,6 +89,34 @@ func newLabels(container *api.Container, pod *api.Pod, restartCount int, enableC
 			glog.Errorf("Unable to marshal lifecycle PreStop handler for container %q of pod %q: %v", container.Name, format.Pod(pod), err)
 		} else {
 			labels[kubernetesContainerPreStopHandlerLabel] = string(rawPreStop)
+		}
+	}
+
+	// If there's a special annotation named
+	//    containers-annotations.alpha.kubernetes.io
+	// then assume its value is JSON defining the set of labels to
+	// set on the containers in this pod.
+	if k, ok := pod.Annotations[kubernetesPodContainersAnnotationsPrefix]; ok {
+		// First save all keys from above so that we can check to make
+		// sure they're not trying to override them
+		bannedKeys := map[string]struct{}{}
+		for k, _ := range labels {
+			bannedKeys[k] = struct{}{}
+		}
+
+		annots := map[string]string{}
+		if err := json.Unmarshal([]byte(k), &annots); err != nil {
+			glog.Errorf("Unable to unmarshal containers annotations(%q): %v", k, err)
+		}
+
+		// For each key in the json, make sure its not a reserved key
+		// and if not add it to the list of container labels
+		for k, v := range annots {
+			if _, ok := bannedKeys[k]; ok {
+				glog.Errorf("Reserved container label %q may not be used", k)
+				continue
+			}
+			labels[k] = v
 		}
 	}
 
