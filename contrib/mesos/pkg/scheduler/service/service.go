@@ -170,6 +170,7 @@ type SchedulerServer struct {
 	kubeletPodInfraContainerImage  string
 	kubeletCadvisorPort            uint
 	kubeletHostNetworkSources      string
+	kubeletLogToStderr             bool
 	kubeletSyncFrequency           time.Duration
 	kubeletNetworkPluginName       string
 	kubeletKubeconfig              string
@@ -326,6 +327,7 @@ func (s *SchedulerServer) addCoreFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.kubeletPodInfraContainerImage, "kubelet-pod-infra-container-image", s.kubeletPodInfraContainerImage, "The image whose network/ipc namespaces containers in each pod will use.")
 	fs.UintVar(&s.kubeletCadvisorPort, "kubelet-cadvisor-port", s.kubeletCadvisorPort, "The port of the kubelet's local cAdvisor endpoint")
 	fs.StringVar(&s.kubeletHostNetworkSources, "kubelet-host-network-sources", s.kubeletHostNetworkSources, "Comma-separated list of sources from which the Kubelet allows pods to use of host network. For all sources use \"*\" [default=\"file\"]")
+	fs.BoolVar(&s.kubeletLogToStderr, "kubelet-logtostderr", s.kubeletLogToStderr, "Kubelet log to standard error instead of files")
 	fs.DurationVar(&s.kubeletSyncFrequency, "kubelet-sync-frequency", s.kubeletSyncFrequency, "Max period between synchronizing running containers and config")
 	fs.StringVar(&s.kubeletNetworkPluginName, "kubelet-network-plugin", s.kubeletNetworkPluginName, "<Warning: Alpha feature> The name of the network plugin to be invoked for various events in kubelet/pod lifecycle")
 	fs.BoolVar(&s.kubeletEnableDebuggingHandlers, "kubelet-enable-debugging-handlers", s.kubeletEnableDebuggingHandlers, "Enables kubelet endpoints for log collection and local running of containers and commands")
@@ -499,6 +501,7 @@ func (s *SchedulerServer) prepareExecutorInfo(hks hyperkube.Interface) (*mesos.E
 	appendOptional("docker-endpoint", s.kubeletDockerEndpoint)
 	appendOptional("pod-infra-container-image", s.kubeletPodInfraContainerImage)
 	appendOptional("host-network-sources", s.kubeletHostNetworkSources)
+	appendOptional("logtostderr", s.kubeletLogToStderr)
 	appendOptional("network-plugin", s.kubeletNetworkPluginName)
 
 	// TODO(jdef) this code depends on poorly scoped cadvisor flags, will need refactoring soon
