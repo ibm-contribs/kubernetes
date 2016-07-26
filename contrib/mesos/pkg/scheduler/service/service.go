@@ -172,6 +172,7 @@ type SchedulerServer struct {
 	kubeletHostNetworkSources      string
 	kubeletSyncFrequency           time.Duration
 	kubeletNetworkPluginName       string
+	kubeletNetworkPluginDirectory  string
 	kubeletKubeconfig              string
 	staticPodsConfigPath           string
 	dockerCfgPath                  string
@@ -328,6 +329,7 @@ func (s *SchedulerServer) addCoreFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.kubeletHostNetworkSources, "kubelet-host-network-sources", s.kubeletHostNetworkSources, "Comma-separated list of sources from which the Kubelet allows pods to use of host network. For all sources use \"*\" [default=\"file\"]")
 	fs.DurationVar(&s.kubeletSyncFrequency, "kubelet-sync-frequency", s.kubeletSyncFrequency, "Max period between synchronizing running containers and config")
 	fs.StringVar(&s.kubeletNetworkPluginName, "kubelet-network-plugin", s.kubeletNetworkPluginName, "<Warning: Alpha feature> The name of the network plugin to be invoked for various events in kubelet/pod lifecycle")
+	fs.StringVar(&s.kubeletNetworkPluginDirectory, "kubelet-network-plugin-dir", s.kubeletNetworkPluginDirectory, "<Warning: Alpha feature> The directory path of the network plugin to be invoked for various events in kubelet/pod lifecycle")
 	fs.BoolVar(&s.kubeletEnableDebuggingHandlers, "kubelet-enable-debugging-handlers", s.kubeletEnableDebuggingHandlers, "Enables kubelet endpoints for log collection and local running of containers and commands")
 	fs.StringVar(&s.kubeletKubeconfig, "kubelet-kubeconfig", s.kubeletKubeconfig, "Path to kubeconfig file with authorization and master location information used by the kubelet.")
 	fs.IntVar(&s.conntrackMax, "conntrack-max", s.conntrackMax, "Maximum number of NAT connections to track on agent nodes (0 to leave as-is)")
@@ -495,6 +497,7 @@ func (s *SchedulerServer) prepareExecutorInfo(hks hyperkube.Interface) (*mesos.E
 	appendOptional("pod-infra-container-image", s.kubeletPodInfraContainerImage)
 	appendOptional("host-network-sources", s.kubeletHostNetworkSources)
 	appendOptional("network-plugin", s.kubeletNetworkPluginName)
+	appendOptional("network-plugin-dir", s.kubeletNetworkPluginDirectory)
 
 	// TODO(jdef) this code depends on poorly scoped cadvisor flags, will need refactoring soon
 	appendOptional(flagutil.Cadvisor.HousekeepingInterval.NameValue())
