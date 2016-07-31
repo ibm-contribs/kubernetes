@@ -497,11 +497,11 @@ func (s *SchedulerServer) prepareExecutorInfo(hks hyperkube.Interface) (*mesos.E
 		appendOptional("cluster-dns", s.clusterDNS.String())
 	}
 	appendOptional("cluster-domain", s.clusterDomain)
+	appendOptional("logtostderr", s.kubeletLogToStderr)
 	appendOptional("root-dir", s.kubeletRootDirectory)
 	appendOptional("docker-endpoint", s.kubeletDockerEndpoint)
 	appendOptional("pod-infra-container-image", s.kubeletPodInfraContainerImage)
 	appendOptional("host-network-sources", s.kubeletHostNetworkSources)
-	appendOptional("logtostderr", s.kubeletLogToStderr)
 	appendOptional("network-plugin", s.kubeletNetworkPluginName)
 
 	// TODO(jdef) this code depends on poorly scoped cadvisor flags, will need refactoring soon
