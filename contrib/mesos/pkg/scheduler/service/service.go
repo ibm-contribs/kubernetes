@@ -165,6 +165,7 @@ type SchedulerServer struct {
 	clusterDNS                     net.IP
 	clusterDomain                  string
 	kubeletApiServerList           []string
+	kubeletConfig                  string
 	kubeletRootDirectory           string
 	kubeletDockerEndpoint          string
 	kubeletPodInfraContainerImage  string
@@ -321,6 +322,7 @@ func (s *SchedulerServer) addCoreFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.minionLogMaxBackups, "minion-max-log-backups", s.minionLogMaxBackups, "Maximum log file backups of the executor and proxy to keep after rotation")
 
 	fs.StringSliceVar(&s.kubeletApiServerList, "kubelet-api-servers", s.kubeletApiServerList, "List of Kubernetes API servers kubelet will use. (ip:port), comma separated. If unspecified it defaults to the value of --api-servers.")
+	fs.StringVar(&s.kubeletConfig, "kubelet-config", s.kubeletConfig, "Path to the config file or directory of files.")
 	fs.StringVar(&s.kubeletRootDirectory, "kubelet-root-dir", s.kubeletRootDirectory, "Directory path for managing kubelet files (volume mounts,etc). Defaults to executor sandbox.")
 	fs.StringVar(&s.kubeletDockerEndpoint, "kubelet-docker-endpoint", s.kubeletDockerEndpoint, "If non-empty, kubelet will use this for the docker endpoint to communicate with.")
 	fs.StringVar(&s.kubeletPodInfraContainerImage, "kubelet-pod-infra-container-image", s.kubeletPodInfraContainerImage, "The image whose network/ipc namespaces containers in each pod will use.")
@@ -494,6 +496,7 @@ func (s *SchedulerServer) prepareExecutorInfo(hks hyperkube.Interface) (*mesos.E
 	if s.clusterDNS != nil {
 		appendOptional("cluster-dns", s.clusterDNS.String())
 	}
+	appendOptional("config", s.kubeletConfig)
 	appendOptional("cluster-domain", s.clusterDomain)
 	appendOptional("root-dir", s.kubeletRootDirectory)
 	appendOptional("docker-endpoint", s.kubeletDockerEndpoint)
