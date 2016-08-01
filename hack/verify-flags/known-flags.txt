@@ -248,6 +248,7 @@ kubelet-enable-debugging-handlers
 kubelet-host-network-sources
 kubelet-https
 kubelet-kubeconfig
+kubelet-logtostderr
 kubelet-network-plugin
 kubelet-pod-infra-container-image
 kubelet-port
