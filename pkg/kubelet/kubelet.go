@@ -1086,13 +1086,13 @@ type Kubelet struct {
 // 3.  the plugins directory
 func (kl *Kubelet) setupDataDirs() error {
 	kl.rootDirectory = path.Clean(kl.rootDirectory)
-	if err := os.MkdirAll(kl.getRootDir(), 0750); err != nil {
+	if err := os.MkdirAll(kl.getRootDir(), 0755); err != nil {
 		return fmt.Errorf("error creating root directory: %v", err)
 	}
-	if err := os.MkdirAll(kl.getPodsDir(), 0750); err != nil {
+	if err := os.MkdirAll(kl.getPodsDir(), 0755); err != nil {
 		return fmt.Errorf("error creating pods directory: %v", err)
 	}
-	if err := os.MkdirAll(kl.getPluginsDir(), 0750); err != nil {
+	if err := os.MkdirAll(kl.getPluginsDir(), 0755); err != nil {
 		return fmt.Errorf("error creating plugins directory: %v", err)
 	}
 	return nil
@@ -1453,7 +1453,7 @@ func (kl *Kubelet) GenerateRunContainerOptions(pod *api.Pod, container *api.Cont
 
 	if len(container.TerminationMessagePath) != 0 {
 		p := kl.getPodContainerDir(pod.UID, container.Name)
-		if err := os.MkdirAll(p, 0750); err != nil {
+		if err := os.MkdirAll(p, 0755); err != nil {
 			glog.Errorf("Error on creating %q: %v", p, err)
 		} else {
 			opts.PodContainerDir = p
@@ -1740,13 +1740,13 @@ func (kl *Kubelet) killPod(pod *api.Pod, runningPod *kubecontainer.Pod, status *
 // makePodDataDirs creates the dirs for the pod datas.
 func (kl *Kubelet) makePodDataDirs(pod *api.Pod) error {
 	uid := pod.UID
-	if err := os.MkdirAll(kl.getPodDir(uid), 0750); err != nil && !os.IsExist(err) {
+	if err := os.MkdirAll(kl.getPodDir(uid), 0755); err != nil && !os.IsExist(err) {
 		return err
 	}
-	if err := os.MkdirAll(kl.getPodVolumesDir(uid), 0750); err != nil && !os.IsExist(err) {
+	if err := os.MkdirAll(kl.getPodVolumesDir(uid), 0755); err != nil && !os.IsExist(err) {
 		return err
 	}
-	if err := os.MkdirAll(kl.getPodPluginsDir(uid), 0750); err != nil && !os.IsExist(err) {
+	if err := os.MkdirAll(kl.getPodPluginsDir(uid), 0755); err != nil && !os.IsExist(err) {
 		return err
 	}
 	return nil
