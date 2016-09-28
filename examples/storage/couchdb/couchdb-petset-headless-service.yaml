@@ -1,0 +1,21 @@
+# Headless service to provide DNS lookup
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    tier: backend
+    app: couchdb
+  name: kubetest001-backend
+  namespace: default
+spec:
+  clusterIP: None
+  ports:
+  - name: in-tcp-port
+    port: 5984
+    targetPort: 5984
+  - name: admin-port
+    port: 5986
+    targetPort: 5986
+  selector:
+    app: couchdb
+    cluster: kubetest001

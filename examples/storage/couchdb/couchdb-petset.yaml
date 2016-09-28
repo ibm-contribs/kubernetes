@@ -1,0 +1,114 @@
+apiVersion: "apps/v1alpha1"
+kind: PetSet
+metadata:
+  name: kubetest001
+  namespace: default
+spec:
+  serviceName: kubetest001-backend
+  replicas: 3
+  template:
+    metadata:
+      annotations:
+        pod.alpha.kubernetes.io/initialized: "true"
+        pod.alpha.kubernetes.io/init-containers: '[
+            {
+            "name": "configer-couch",
+            "image": "glyndwr/kube-init-couchdb",
+            "command": ["/bin/bash", "-c", "/./configer_couch.sh"],
+            "volumeMounts": [
+                {
+                    "name": "core-config",
+                    "mountPath": "/core-config/"
+                                  },
+                {
+                    "name": "pod-config-store",
+                    "mountPath": "/opt/couchdb/etc/"
+                                  }
+                              ],
+            "env": [
+                {
+                    "name": "INSTALL_LOCATION",
+                    "value": "/opt/couchdb"
+                }
+                              ] 
+              }
+            ]'
+      labels:
+        cluster: kubetest001
+        tier: backend
+        app: couchdb
+    spec:
+      containers:
+      - env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: CLUSTER_ADM_USER
+          valueFrom:
+            secretKeyRef:
+              name: cluster-adm
+              key: username
+        - name: CLUSTER_ADM_PASS
+          valueFrom:
+            secretKeyRef:
+              name: cluster-adm
+              key: password
+        image: klaemo/couchdb:2.0.0
+        name: couchdb
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 873
+          name: rsync-port
+        - containerPort: 22
+          name: ssh-port
+        - containerPort: 5984
+          name: in-tcp-port
+        - containerPort: 4369
+          name: erlang-port
+        - containerPort: 9100
+          name: foo-port
+        - containerPort: 5986
+          name: admin-port
+        - containerPort: 443
+          name: ssl-port
+        volumeMounts:
+        - mountPath: /core-config/
+          name: core-config
+        - mountPath: /opt/couchdb/etc/
+          name:  pod-config-store
+      - name: couchdb-readiness
+        image: glyndwr/kube-couchdb-readiness
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: CLUSTER_ADM_USER
+          valueFrom:
+            secretKeyRef:
+              name: cluster-adm
+              key: username
+        - name: CLUSTER_ADM_PASS
+          valueFrom:
+            secretKeyRef:
+              name: cluster-adm
+              key: password
+        - name: INSTALL_LOCATION
+          value: /opt/couchdb
+        - name: NODES_DB
+          value: _nodes
+        readinessProbe:
+          exec:
+            command:
+              - /bin/bash
+              - -c
+              - /./join_cluster.py _users
+          initialDelaySeconds: 15
+          timeoutSeconds: 5
+      volumes:
+      - name: core-config
+        configMap:
+          name: core-config
+      - name: pod-config-store
+        emptyDir: {}
