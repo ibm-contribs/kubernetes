@@ -124,9 +124,14 @@ type KubeDNS struct {
 	// cluster zone annotation from the cached node instead of getting it from the API server
 	// every time.
 	nodesStore kcache.Store
+
+	// List of namespaces that this DNS server should service. So it will
+	// limit its services & endpoints to just the namespaces provided.
+	// It defaults to NamespaceAll if not provided.
+	namespaces map[string]bool
 }
 
-func NewKubeDNS(client clientset.Interface, domain string, federations map[string]string) (*KubeDNS, error) {
+func NewKubeDNS(client clientset.Interface, domain string, federations map[string]string, namespaces []string) (*KubeDNS, error) {
 	// Verify that federation names should not contain dots ('.')
 	// We can not allow dots since we use that as separator for path segments (svcname.nsname.fedname.svc.domain)
 	for key := range federations {
@@ -134,6 +139,7 @@ func NewKubeDNS(client clientset.Interface, domain string, federations map[strin
 			return nil, fmt.Errorf("invalid federation name: %s, cannot have '.'", key)
 		}
 	}
+
 	kd := &KubeDNS{
 		kubeClient:          client,
 		domain:              domain,
@@ -144,9 +150,19 @@ func NewKubeDNS(client clientset.Interface, domain string, federations map[strin
 		clusterIPServiceMap: make(map[string]*kapi.Service),
 		domainPath:          reverseArray(strings.Split(strings.TrimRight(domain, "."), ".")),
 		federations:         federations,
+		namespaces:          map[string]bool{},
 	}
-	kd.setEndpointsStore()
-	kd.setServicesStore()
+
+	// Skip blank namespaces
+	for _, val := range namespaces {
+		if val != "" {
+			kd.namespaces[val] = true
+		}
+	}
+
+	kd.setEndpointsStore(kd.namespaces)
+	kd.setServicesStore(kd.namespaces)
+
 	return kd, nil
 }
 
@@ -185,15 +201,24 @@ func (kd *KubeDNS) GetCacheAsJSON() (string, error) {
 	return json, err
 }
 
-func (kd *KubeDNS) setServicesStore() {
+func (kd *KubeDNS) setServicesStore(namespaces map[string]bool) {
+	namespace := kapi.NamespaceAll
+
+	// If we only have one then we can watch for just that one
+	if len(namespaces) == 1 {
+		for k, _ := range namespaces {
+			namespace = k
+		}
+	}
+
 	// Returns a cache.ListWatch that gets all changes to services.
 	kd.servicesStore, kd.serviceController = kcache.NewInformer(
 		&kcache.ListWatch{
 			ListFunc: func(options kapi.ListOptions) (runtime.Object, error) {
-				return kd.kubeClient.Core().Services(kapi.NamespaceAll).List(options)
+				return kd.kubeClient.Core().Services(namespace).List(options)
 			},
 			WatchFunc: func(options kapi.ListOptions) (watch.Interface, error) {
-				return kd.kubeClient.Core().Services(kapi.NamespaceAll).Watch(options)
+				return kd.kubeClient.Core().Services(namespace).Watch(options)
 			},
 		},
 		&kapi.Service{},
@@ -206,15 +231,24 @@ func (kd *KubeDNS) setServicesStore() {
 	)
 }
 
-func (kd *KubeDNS) setEndpointsStore() {
+func (kd *KubeDNS) setEndpointsStore(namespaces map[string]bool) {
+	namespace := kapi.NamespaceAll
+
+	// If we only have one then we can watch for just that one
+	if len(namespaces) == 1 {
+		for k, _ := range namespaces {
+			namespace = k
+		}
+	}
+
 	// Returns a cache.ListWatch that gets all changes to endpoints.
 	kd.endpointsStore, kd.endpointsController = kcache.NewInformer(
 		&kcache.ListWatch{
 			ListFunc: func(options kapi.ListOptions) (runtime.Object, error) {
-				return kd.kubeClient.Core().Endpoints(kapi.NamespaceAll).List(options)
+				return kd.kubeClient.Core().Endpoints(namespace).List(options)
 			},
 			WatchFunc: func(options kapi.ListOptions) (watch.Interface, error) {
-				return kd.kubeClient.Core().Endpoints(kapi.NamespaceAll).Watch(options)
+				return kd.kubeClient.Core().Endpoints(namespace).Watch(options)
 			},
 		},
 		&kapi.Endpoints{},
@@ -238,8 +272,25 @@ func assertIsService(obj interface{}) (*kapi.Service, bool) {
 	}
 }
 
+func (kd *KubeDNS) isScopedNamespace(ns string) bool {
+	// If no namespace was specified (which means 'all') or we only
+	// specified exatly one then we can return immediately. In the '1'
+	// case we know that the watcher is looking for just that one case.
+	if len(kd.namespaces) <= 1 {
+		return true
+	}
+
+	_, ok := kd.namespaces[ns]
+	return ok
+}
+
 func (kd *KubeDNS) newService(obj interface{}) {
 	if service, ok := assertIsService(obj); ok {
+		// Skip any services not in a namespace we care about
+		if !kd.isScopedNamespace(service.ObjectMeta.Namespace) {
+			return
+		}
+
 		glog.V(4).Infof("Add/Updated for service %v", service.Name)
 		// ExternalName services are a special kind that return CNAME records
 		if service.Spec.Type == kapi.ServiceTypeExternalName {
@@ -260,6 +311,11 @@ func (kd *KubeDNS) newService(obj interface{}) {
 
 func (kd *KubeDNS) removeService(obj interface{}) {
 	if s, ok := assertIsService(obj); ok {
+		// Skip any services not in a namespace we care about
+		if !kd.isScopedNamespace(s.ObjectMeta.Namespace) {
+			return
+		}
+
 		subCachePath := append(kd.domainPath, serviceSubdomain, s.Namespace, s.Name)
 		kd.cacheLock.Lock()
 		defer kd.cacheLock.Unlock()
@@ -275,6 +331,11 @@ func (kd *KubeDNS) removeService(obj interface{}) {
 
 func (kd *KubeDNS) updateService(oldObj, newObj interface{}) {
 	if new, ok := assertIsService(newObj); ok {
+		// Skip any services not in a namespace we care about
+		if !kd.isScopedNamespace(new.ObjectMeta.Namespace) {
+			return
+		}
+
 		if old, ok := assertIsService(oldObj); ok {
 			// Remove old cache path only if changing type to/from ExternalName.
 			// In all other cases, we'll update records in place.
@@ -297,10 +358,16 @@ func (kd *KubeDNS) addDNSUsingEndpoints(e *kapi.Endpoints) error {
 	if err != nil {
 		return err
 	}
+
 	if svc == nil || kapi.IsServiceIPSet(svc) {
 		// No headless service found corresponding to endpoints object.
 		return nil
 	}
+
+	if !kd.isScopedNamespace(svc.ObjectMeta.Namespace) {
+		return nil
+	}
+
 	return kd.generateRecordsForHeadlessService(e, svc)
 }
 

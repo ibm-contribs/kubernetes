@@ -37,6 +37,7 @@ type KubeDNSConfig struct {
 	DNSPort        int
 	// Federations maps federation names to their registered domain names.
 	Federations map[string]string
+	Namespaces  []string
 }
 
 func NewKubeDNSConfig() *KubeDNSConfig {
@@ -47,6 +48,7 @@ func NewKubeDNSConfig() *KubeDNSConfig {
 		HealthzPort:    8081,
 		DNSPort:        53,
 		Federations:    make(map[string]string),
+		Namespaces:     []string{},
 	}
 }
 
@@ -138,6 +140,31 @@ func (fv federationsVar) Type() string {
 	return "[]string"
 }
 
+type namespacesVar struct {
+	namespaces *[]string
+}
+
+func (nv namespacesVar) Set(ns string) error {
+	nss := strings.Split(ns, ",")
+
+	// We loop instead of just blindly appending to skip blanks
+	for _, val := range nss {
+		if val != "" {
+			*nv.namespaces = append(*nv.namespaces, val)
+		}
+	}
+
+	return nil
+}
+
+func (nv namespacesVar) String() string {
+	return strings.Join(*nv.namespaces, ",")
+}
+
+func (nv namespacesVar) Type() string {
+	return "[]string"
+}
+
 func (s *KubeDNSConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.Var(clusterDomainVar{&s.ClusterDomain}, "domain", "domain under which to create names")
 	fs.StringVar(&s.KubeConfigFile, "kubecfg-file", s.KubeConfigFile, "Location of kubecfg file for access to kubernetes master service; --kube-master-url overrides the URL part of this; if neither this nor --kube-master-url are provided, defaults to service account tokens")
@@ -145,4 +172,5 @@ func (s *KubeDNSConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.HealthzPort, "healthz-port", s.HealthzPort, "port on which to serve a kube-dns HTTP readiness probe.")
 	fs.IntVar(&s.DNSPort, "dns-port", s.DNSPort, "port on which to serve DNS requests.")
 	fs.Var(federationsVar{s.Federations}, "federations", "a comma separated list of the federation names and their corresponding domain names to which this cluster belongs. Example: \"myfederation1=example.com,myfederation2=example2.com,myfederation3=example.com\"")
+	fs.Var(namespacesVar{&s.Namespaces}, "dns-namespaces", "a comma separated list of namespaces the DNS service should support. Default is all(\"\").")
 }
