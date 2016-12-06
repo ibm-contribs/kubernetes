@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: couchdb
+  name: kubetest001
+  namespace: default
+spec:
+  #clusterIP: 100.10.10.101
+  ports:
+  - name: in-tcp-port
+    port: 80
+    targetPort: 5984
+  - name: rsync-port
+    port: 873
+    targetPort: 873
+  - name: ssh-port
+    port: 22
+    targetPort: 22
+  - name: erlang-port
+    port: 4369
+    targetPort: 4369
+  - name: foo-port
+    port: 9100
+    targetPort: 9100
+  - name: admin-port
+    port: 5986
+    targetPort: 5986
+  - name: ssl-port
+    port: 443
+    targetPort: 443
+  selector:
+    tier: backend
+    app: couchdb
+    cluster: kubetest001
+  type: NodePort
